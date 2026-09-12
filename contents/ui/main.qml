@@ -161,8 +161,53 @@ SceneEffect {
         updateFilter();
     }
 
-    function windowMatchScore(window, searchString) {
+    function captionMatchScore(searchString, caption) {
+        if (!caption || !searchString) {
+            return -1;
+        }
 
+        const text = String(caption);
+
+        const queryLower = searchString.toLowerCase();
+        const captionLower = text.toLowerCase();
+
+        // exact substring match -- automatically return the perfect score
+        if (captionLower.indexOf(queryLower) >= 0) {
+            return 100;
+        }
+
+        // keep the whole-caption score as the baseline
+        let best = FuzzyMatcher.score(searchString, text);
+
+        const queryWords = searchString.trim().split(/\s+/);
+        const captionWords = text.trim().split(/\s+/);
+
+        const queryWordCount = queryWords.length;
+
+        // compare against local caption spans approximately the same
+        // size as the query
+        for (let windowSize = queryWordCount;
+             windowSize <= Math.min(queryWordCount + 1, captionWords.length);
+             ++windowSize) {
+
+                 for (let start = 0;
+                 start + windowSize <= captionWords.length;
+                 ++start) {
+
+                     const fragment =
+                         captionWords.slice(start, start + windowSize).join(" ");
+
+                     best = Math.max(
+                         best,
+                         FuzzyMatcher.score(searchString, fragment, true)
+                     );
+                 }
+             }
+
+        return best;
+    }
+
+    function windowMatchScore(window, searchString) {
         const caption = window.caption ? String(window.caption) : "";
 
         const resourceClass = window.resourceClass ? String(window.resourceClass) : "";
@@ -170,9 +215,9 @@ SceneEffect {
         const resourceName = window.resourceName ? String(window.resourceName) : "";
 
         return Math.max(
-            FuzzyMatcher.score(searchString, caption),
-            FuzzyMatcher.score(searchString, resourceClass),
-            FuzzyMatcher.score(searchString, resourceName)
+            captionMatchScore(searchString, caption),
+            FuzzyMatcher.score(searchString, resourceClass, true),
+            FuzzyMatcher.score(searchString, resourceName, true)
         );
 
     }
@@ -186,18 +231,23 @@ SceneEffect {
             return;
         }
 
-        // const minimumScore = 45;
+        let minimumScore = 0;
+        if (needle.length >= 3) {
+           minimumScore = 45;
+        }
         const matches = [];
 
         for (let i = 0; i < candidates.length; ++i) {
             const window = candidates[i];
             const score = windowMatchScore(window, needle);
 
-            matches.push({
-                window: window,
-                score: score,
-                mruIndex: i
-            });
+            if (score >= minimumScore) {
+                matches.push({
+                    window: window,
+                    score: score,
+                    mruIndex: i
+                });
+            }
         }
 
         matches.sort(function(a, b) {
@@ -428,7 +478,7 @@ SceneEffect {
             // reset timer on mouse movement
             PointHandler {
                 acceptedButtons: Qt.NoButton
-                onPointChanged: effect.noteActivity()
+                onPointChanged: effect.resetTimer()
             }
 
             // Click outside the panel to cancel.
