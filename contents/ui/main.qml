@@ -177,7 +177,7 @@ SceneEffect {
         }
 
         // keep the whole-caption score as the baseline
-        let best = FuzzyMatcher.score(searchString, text);
+        let best = FuzzyMatcher.score(searchString, text, true);
 
         const queryWords = searchString.trim().split(/\s+/);
         const captionWords = text.trim().split(/\s+/);
@@ -578,11 +578,13 @@ SceneEffect {
                             required property int index
                             required property var modelData
 
+                            readonly property bool selected: index === effect.selectedIndex
+
                             width: ListView.view.width
                             height: 58
                             radius: 7
-                            color: index === effect.selectedIndex
-                                 ? "#dd2f6fbd"
+                            color: row.selected
+                                 ? Kirigami.Theme.highlightColor
                                  : "transparent"
 
                             Kirigami.Icon {
@@ -611,9 +613,11 @@ SceneEffect {
                                 Text {
                                     width: parent.width
                                     text: row.modelData.caption
-                                    color: "white"
-                                    font.pixelSize: 14
+                                    font: Kirigami.Theme.defaultFont
                                     elide: Text.ElideRight
+                                    color: row.selected
+                                         ? Kirigami.Theme.highlightedTextColor
+                                         : "white"
                                 }
 
                                 Text {
@@ -621,9 +625,11 @@ SceneEffect {
                                     text: row.modelData === effect.invocationWindow
                                         ? String(row.modelData.resourceClass) + "  ·  current window"
                                         : String(row.modelData.resourceClass)
-                                    color: "#aaffffff"
-                                    font.pixelSize: 11
+                                    font: Kirigami.Theme.smallFont
                                     elide: Text.ElideRight
+                                    color: row.selected
+                                         ? Kirigami.Theme.highlightedTextColor
+                                         : "white"
                                 }
                             }
 
@@ -637,8 +643,10 @@ SceneEffect {
                                 text: row.index < 10
                                     ? effect.shortcutLabel(row.index)
                                     : ""
-                                color: "#b8ffffff"
-                                font.pixelSize: 12
+                                color: row.selected
+                                    ? Kirigami.Theme.highlightedTextColor
+                                    : "white"
+                                font: Kirigami.Theme.smallFont
                             }
 
                             MouseArea {
@@ -659,7 +667,7 @@ SceneEffect {
                                 visible: effect.filteredCandidates.length === 0
                                 text: "No matching windows"
                                 color: "#aaffffff"
-                                font.pixelSize: 14
+                                font: Kirigami.Theme.defaultFont
                             }
                         }
                     }
