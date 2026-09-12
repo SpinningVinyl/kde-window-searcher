@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as Controls
 import org.kde.kwin
 import org.kde.kirigami as Kirigami
+import "../code/FuzzyMatcher.js" as FuzzyMatcher
 
 SceneEffect {
     id: effect
@@ -24,6 +25,11 @@ SceneEffect {
     property string query: ""
     property int selectedIndex: -1
 
+    function resetTimer() {
+        if (visible) {
+            autoDismissTimer.restart();
+        }
+    }
 
     function trackable(window) {
         return window
@@ -155,29 +161,59 @@ SceneEffect {
         updateFilter();
     }
 
-    function searchableText(window) {
-        const caption = window && window.caption ? String(window.caption) : "";
-        const resourceClass = window && window.resourceClass
-                            ? String(window.resourceClass) : "";
-        const resourceName = window && window.resourceName
-                           ? String(window.resourceName) : "";
+    function windowMatchScore(window, searchString) {
 
-        return (caption + "\n" + resourceClass + "\n" + resourceName).toLowerCase();
+        const caption = window.caption ? String(window.caption) : "";
+
+        const resourceClass = window.resourceClass ? String(window.resourceClass) : "";
+
+        const resourceName = window.resourceName ? String(window.resourceName) : "";
+
+        return Math.max(
+            FuzzyMatcher.score(searchString, caption),
+            FuzzyMatcher.score(searchString, resourceClass),
+            FuzzyMatcher.score(searchString, resourceName)
+        );
+
     }
 
     function updateFilter() {
-        const needle = query.trim().toLowerCase();
-        const result = [];
+        const needle = query.trim();
+
+        if (needle.length === 0) {
+            filteredCandidates = candidates.slice();
+            selectedIndex = filteredCandidates.length > 0 ? 0 : -1;
+            return;
+        }
+
+        // const minimumScore = 45;
+        const matches = [];
 
         for (let i = 0; i < candidates.length; ++i) {
             const window = candidates[i];
-            if (needle.length === 0 || searchableText(window).indexOf(needle) >= 0) {
-                result.push(window);
-            }
+            const score = windowMatchScore(window, needle);
+
+            matches.push({
+                window: window,
+                score: score,
+                mruIndex: i
+            });
         }
 
-        filteredCandidates = result;
-        selectedIndex = result.length > 0 ? 0 : -1;
+        matches.sort(function(a, b) {
+            if (a.score !== b.score) {
+                return b.score - a.score;
+            }
+
+            // Equal-quality matches retain MRU ordering.
+            return a.mruIndex - b.mruIndex;
+        });
+
+        filteredCandidates = matches.map(function(match) {
+            return match.window;
+        });
+
+        selectedIndex = filteredCandidates.length > 0 ? 0 : -1;
     }
 
     function openSwitcher() {
@@ -389,6 +425,12 @@ SceneEffect {
             focus: visible
             visible: scene.invocationView
 
+            // reset timer on mouse movement
+            PointHandler {
+                acceptedButtons: Qt.NoButton
+                onPointChanged: effect.noteActivity()
+            }
+
             // Click outside the panel to cancel.
             MouseArea {
                 anchors.fill: parent
@@ -434,6 +476,7 @@ SceneEffect {
                         }
 
                         Keys.onPressed: event => {
+                            effect.resetTimer();
                             let handled = true;
 
                             if (event.key === Qt.Key_Escape) {
