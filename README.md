@@ -13,7 +13,7 @@ Window switcher for KWin with support for incremental search.
 - Use Enter to activate the highlighted result.
 - Use Escape or click outside the panel to cancel.
 - Use Ctrl+1 ... Ctrl+0 to activate filtered results 1 ... 10.
-- Alternatively, you can hover hover the mouse cursor over a row to select it and click to activate.
+- Alternatively, you can hover the mouse cursor over a row to select it and click to activate.
 - A 30-second failsafe timeout automatically dismisses the effect to prevent situations when something steals focus from the searcher and makes it impossible to dismiss manually.
 
 The default shortcut is `Meta+Alt+Space` (can be changed in KDE's keyboard shortcut settings).
