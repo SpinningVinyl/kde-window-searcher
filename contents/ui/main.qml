@@ -262,6 +262,7 @@ SceneEffect {
         return index === 9 ? "Ctrl+0" : "Ctrl+" + String(index + 1);
     }
 
+    
     Component.onCompleted: seedMru()
 
     Connections {
@@ -330,6 +331,18 @@ SceneEffect {
         readonly property bool invocationView: effect.invocationScreen === screen
 
         focus: invocationView
+        onInvocationViewChanged: focusSearchField()
+
+        function focusSearchField() {
+            if (!effect.visible || !scene.invocationView) {
+                return;
+            }
+
+            Qt.callLater(function() {
+                switcherUi.forceActiveFocus();
+                searchField.forceActiveFocus(Qt.ShortcutFocusReason);
+            });
+        }
 
         // SceneEffect replaces KWin's normal scene while active, so reconstruct
         // the current desktop and visible windows underneath the switcher.
@@ -370,8 +383,10 @@ SceneEffect {
             color: "#66000000"
         }
 
-        Item {
+        FocusScope {
+            id: switcherUi
             anchors.fill: parent
+            focus: visible
             visible: scene.invocationView
 
             // Click outside the panel to cancel.
@@ -411,6 +426,7 @@ SceneEffect {
                         width: parent.width
                         placeholderText: "Search windows…"
                         selectByMouse: true
+                        focus: true
 
                         onTextChanged: {
                             effect.query = text;
@@ -563,10 +579,8 @@ SceneEffect {
 
             function onVisibleChanged() {
                 if (effect.visible && scene.invocationView) {
-                    Qt.callLater(function() {
-                        searchField.text = "";
-                        searchField.forceActiveFocus();
-                    });
+                    scene.focusSearchField();
+                    searchField.text = "";
                 }
             }
 
