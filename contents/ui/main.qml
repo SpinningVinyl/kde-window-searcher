@@ -6,15 +6,15 @@ import org.kde.kirigami as Kirigami
 SceneEffect {
     id: effect
 
-    // This is a failsafe rather than an inactivity timer. A normal interaction
-    // should take only a few seconds; if the effect is still open after 30 s,
-    // dismiss it so a suspend/lock/focus glitch cannot strand the full-screen
-    // SceneEffect on screen.
+    // A normal interaction should take only a few seconds;
+    // if the effect is still open after 30s, dismiss it so a suspend/lock/focus
+    // glitch cannot strand the full-screen SceneEffect on screen.
     readonly property int autoDismissInterval: 30000
 
     property point invocationPos: Qt.point(0, 0)
     property var invocationWindow: null
     property var invocationScreen: null
+    property var pendingPointerWindow: null
 
     // candidates: MRU order, with the window that was active on invocation
     // appended at the end.
@@ -23,6 +23,7 @@ SceneEffect {
     property var mruWindows: []
     property string query: ""
     property int selectedIndex: -1
+
 
     function trackable(window) {
         return window
@@ -145,7 +146,7 @@ SceneEffect {
             result.push(window);
         }
 
-        // The currently active window is deliberately last.
+        // The currently active window is deliberately last (mimic the Alt-Tab behaviour)
         if (includeActive) {
             result.push(active);
         }
@@ -180,6 +181,7 @@ SceneEffect {
     }
 
     function openSwitcher() {
+        pendingPointerWindow = null;
         invocationPos = Workspace.cursorPos;
         invocationScreen = Workspace.screenAt(invocationPos);
         invocationWindow = Workspace.activeWindow;
@@ -199,6 +201,16 @@ SceneEffect {
         visible = false;
     }
 
+    function matchesActivation(window, target) {
+        while (window) {
+            if (window === target) {
+                return true;
+            }
+            window = window.modal ? window.transientFor : null;
+        }
+        return false;
+    }
+    
     function activateFilteredIndex(index) {
         if (index < 0 || index >= filteredCandidates.length) {
             return;
@@ -207,6 +219,7 @@ SceneEffect {
         const window = filteredCandidates[index];
         autoDismissTimer.stop();
         visible = false;
+        pendingPointerWindow = matchesActivation(Workspace.activeWindow, window) ? null : window;        
         Workspace.activeWindow = window;
     }
 
@@ -256,6 +269,16 @@ SceneEffect {
 
         function onWindowActivated(window) {
             effect.moveToMruFront(window);
+            if (!window) {
+                return;
+            }
+            const target = effect.pendingPointerWindow;
+            effect.pendingPointerWindow = null;
+            if (target && effect.matchesActivation(window, target)) {
+                if (effect.configuration.TeleportCursor) {
+                    moveMouseToFocus.call();
+                }
+            }            
         }
 
         function onWindowAdded(window) {
@@ -278,6 +301,19 @@ SceneEffect {
         repeat: false
         onTriggered: effect.cancel()
     }
+
+
+    DBusCall {
+        id: moveMouseToFocus
+
+        service: "org.kde.kglobalaccel"
+        path: "/component/kwin"
+        dbusInterface: "org.kde.kglobalaccel.Component"
+        method: "invokeShortcut"
+        arguments: ["MoveMouseToFocus"]
+
+        onFailed: console.warn("Failed to move cursor to focused window")
+    }    
 
     ShortcutHandler {
         name: "Search Window Switcher"
