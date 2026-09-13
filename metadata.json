@@ -11,7 +11,7 @@
         "Id": "com.github.spinningvinyl.kde-window-searcher",
         "License": "GPL-2.0-or-later",
         "Name": "Searchable Window Switcher",
-        "Version": "0.7.0"
+        "Version": "0.7.5"
     },
     "X-KDE-Ordering": 90,
     "X-Plasma-API": "declarativescript",

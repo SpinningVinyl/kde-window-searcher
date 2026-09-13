@@ -161,50 +161,41 @@ SceneEffect {
         updateFilter();
     }
 
-    function captionMatchScore(searchString, caption) {
-        if (!caption || !searchString) {
+    function partialMatchScore(searchString, text) {
+        if (!text || !searchString) {
             return -1;
         }
 
-        const text = String(caption);
+        const value = String(text);
+        const needle = String(searchString).trim();
 
-        const queryLower = searchString.toLowerCase();
-        const captionLower = text.toLowerCase();
+        const queryTokens = needle
+            .split(/[\s._\-:/\\]+/)
+            .filter(token => token.length > 0);
 
-        // exact substring match -- automatically return the perfect score
-        if (captionLower.indexOf(queryLower) >= 0) {
-            return 100;
+        const valueTokens = value
+            .split(/[\s._\-:/\\]+/)
+            .filter(token => token.length > 0);
+
+        if (queryTokens.length === 0 || valueTokens.length === 0) {
+            return -1;
         }
 
-        // keep the whole-caption score as the baseline
-        let best = FuzzyMatcher.score(searchString, text, true);
+        // use the whole-string comparison as the baseline
+        let best = FuzzyMatcher.score(needle, value, true);
 
-        const queryWords = searchString.trim().split(/\s+/);
-        const captionWords = text.trim().split(/\s+/);
+        const windowSize = queryTokens.length;
 
-        const queryWordCount = queryWords.length;
-
-        // compare against local caption spans approximately the same
-        // size as the query
-        for (let windowSize = queryWordCount;
-             windowSize <= Math.min(queryWordCount + 1, captionWords.length);
-             ++windowSize) {
-
-                 for (let start = 0;
-                 start + windowSize <= captionWords.length;
-                 ++start) {
-
-                     const fragment =
-                         captionWords.slice(start, start + windowSize).join(" ");
-
-                     best = Math.max(
-                         best,
-                         FuzzyMatcher.score(searchString, fragment, true)
-                     );
-                 }
+        if (windowSize <= valueTokens.length) {
+            for (let start = 0;
+             start + windowSize <= valueTokens.length;
+             ++start) {
+                 const fragment = valueTokens.slice(start, start + windowSize).join(" ");
+                 best = Math.max(best, FuzzyMatcher.score(needle, fragment, true));
              }
+        }
 
-        return best;
+        return best;        
     }
 
     function windowMatchScore(window, searchString) {
@@ -215,9 +206,9 @@ SceneEffect {
         const resourceName = window.resourceName ? String(window.resourceName) : "";
 
         return Math.max(
-            captionMatchScore(searchString, caption),
-            FuzzyMatcher.score(searchString, resourceClass, true),
-            FuzzyMatcher.score(searchString, resourceName, true)
+            partialMatchScore(searchString, caption),
+            partialMatchScore(searchString, resourceClass),
+            partialMatchScore(searchString, resourceName)
         );
 
     }
