@@ -233,7 +233,7 @@ SceneEffect {
 
         let minimumScore = 0;
         if (needle.length >= 3) {
-           minimumScore = 45;
+           minimumScore = 50;
         }
         const matches = [];
 
