@@ -9,7 +9,8 @@ Window switcher for KWin with support for incremental search.
 - Windows are ordered by MRU, with the window that was active when the switcher opened appended at the end.
 - The search field is focused immediately.
 - Since v0.5.0, incremental search uses fuzzy string matching to make sure that `trminal` or `termnal` still matches `terminal`.
-- Use Up/Down keys to move up and down the list (with wrap-around).
+- Use Up/Down to move up and down the list (with wrap-around). Standard text-editing shortcuts apply by default.
+- Enable **Use Emacs-style navigation** in the effect settings for Ctrl+P/Ctrl+N (Up/Down), Ctrl+A/Ctrl+E (Home/End), and Ctrl+D (delete the selection or next character). This replaces Ctrl+A's Select All behavior.
 - Use Enter to activate the highlighted result.
 - Use Escape or click outside the panel to cancel.
 - Use Ctrl+1 ... Ctrl+0 to activate filtered results 1 ... 10.

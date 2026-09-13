@@ -528,6 +528,8 @@ SceneEffect {
                         Keys.onPressed: event => {
                             effect.resetTimer();
                             let handled = true;
+                            const emacsNavigation = effect.configuration.EmacsStyleNavigation
+                                && event.modifiers === Qt.ControlModifier;
 
                             if (event.key === Qt.Key_Escape) {
                                 effect.cancel();
@@ -537,6 +539,27 @@ SceneEffect {
                                 effect.cycle(-1);
                             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                                 effect.activateFilteredIndex(effect.selectedIndex);
+                            } else if (emacsNavigation
+                                    && event.key === Qt.Key_A) {
+                                searchField.cursorPosition = 0;
+                            } else if (emacsNavigation
+                                    && event.key === Qt.Key_E) {
+                                searchField.cursorPosition = searchField.length;
+                            } else if (emacsNavigation
+                                    && event.key === Qt.Key_D) {
+                                if (searchField.selectedText.length > 0) {
+                                    searchField.remove(searchField.selectionStart, searchField.selectionEnd);
+                                } else {
+                                    const pos = searchField.cursorPosition;
+                                    const size = searchField.text.codePointAt(pos) > 0xffff ? 2 : 1;
+                                    searchField.remove(pos, Math.min(pos + size, searchField.length));
+                                }
+                            } else if (emacsNavigation
+                                    && event.key === Qt.Key_N) {
+                                effect.cycle(1);
+                            } else if (emacsNavigation
+                                    && event.key === Qt.Key_P) {
+                                effect.cycle(-1);
                             } else if ((event.modifiers & Qt.ControlModifier) !== 0) {
                                 const shortcutIndex = effect.shortcutIndexForKey(event.key);
                                 if (shortcutIndex >= 0
