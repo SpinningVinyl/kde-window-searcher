@@ -195,7 +195,7 @@ SceneEffect {
              }
         }
 
-        return best;        
+        return best;
     }
 
     function windowMatchScore(window, searchString) {
