@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as Controls
 import org.kde.kwin
 import org.kde.kirigami as Kirigami
+import org.kde.milou as Milou
 import "../code/FuzzyMatcher.js" as FuzzyMatcher
 
 SceneEffect {
@@ -21,6 +22,7 @@ SceneEffect {
     // appended at the end.
     property var candidates: []
     property var filteredCandidates: []
+    property var results: []
     property var mruWindows: []
     property string query: ""
     property int selectedIndex: -1
@@ -215,10 +217,14 @@ SceneEffect {
 
     function updateFilter() {
         const needle = query.trim();
+        // Discard the previous query immediately, including while runners are busy.
+        applications.clear();
+        applications.queryString = visible && configuration.EnableAppLauncher ? needle : "";
 
         if (needle.length === 0) {
             filteredCandidates = candidates.slice();
-            selectedIndex = filteredCandidates.length > 0 ? 0 : -1;
+            selectedIndex = -1;
+            rebuildResults();
             return;
         }
 
@@ -254,7 +260,46 @@ SceneEffect {
             return match.window;
         });
 
-        selectedIndex = filteredCandidates.length > 0 ? 0 : -1;
+        selectedIndex = -1;
+        rebuildResults();
+    }
+
+    function rebuildResults() {
+        const previous = results[selectedIndex];
+        const next = filteredCandidates.map(window => ({window: window}));
+        if (configuration.EnableAppLauncher && visible && query.trim() && applications.queryString === query.trim()) {
+            for (let i = 0; i < applications.rowCount(); ++i) {
+                const idx = applications.index(i, 0);
+                next.push({
+                    applicationId: applications.data(idx, Milou.ResultsModel.IdRole),
+                    caption: applications.data(idx, Qt.DisplayRole),
+                    icon: applications.data(idx, Qt.DecorationRole),
+                    subtext: applications.data(idx, Milou.ResultsModel.SubtextRole)
+                });
+            }
+        }
+        results = next;
+        const retained = previous ? next.findIndex(result => previous.window
+            ? result.window === previous.window
+            : result.applicationId === previous.applicationId) : -1;
+        selectedIndex = retained >= 0 ? retained : (next.length > 0 ? 0 : -1);
+    }
+
+    Milou.ResultsModel {
+        id: applications
+        singleRunner: "krunner_services"
+        onRowsInserted: () => Qt.callLater(effect.rebuildResults)
+        onRowsRemoved: () => Qt.callLater(effect.rebuildResults)
+        onRowsMoved: () => Qt.callLater(effect.rebuildResults)
+        onModelReset: () => Qt.callLater(effect.rebuildResults)
+        onLayoutChanged: () => Qt.callLater(effect.rebuildResults)
+        onDataChanged: () => Qt.callLater(effect.rebuildResults)
+    }
+
+    onVisibleChanged: {
+        if (!visible) {
+            applications.clear();
+        }
     }
 
     function openSwitcher() {
@@ -266,10 +311,12 @@ SceneEffect {
         selectedIndex = -1;
         snapshotWindows();
 
-        if (candidates.length > 0) {
-            visible = true;
-            autoDismissTimer.restart();
+        if (!configuration.EnableAppLauncher && candidates.length === 0) {
+            return;
         }
+
+        visible = true;
+        autoDismissTimer.restart();
     }
 
     function cancel() {
@@ -289,11 +336,31 @@ SceneEffect {
     }
     
     function activateFilteredIndex(index) {
-        if (index < 0 || index >= filteredCandidates.length) {
+        if (index < 0 || index >= results.length) {
             return;
         }
 
-        const window = filteredCandidates[index];
+        const result = results[index];
+        if (!result.window) {
+            // Resolve by identity: asynchronous results may have moved since rendering.
+            if (!configuration.EnableAppLauncher || applications.queryString !== query.trim()) {
+                return;
+            }
+            for (let i = 0; i < applications.rowCount(); ++i) {
+                const idx = applications.index(i, 0);
+                if (applications.data(idx, Milou.ResultsModel.IdRole) === result.applicationId) {
+                    if (applications.run(idx)) {
+                        cancel();
+                    }
+                    return;
+                }
+            }
+            return;
+        }
+        const window = result.window;
+        if (!trackable(window)) {
+            return;
+        }
         autoDismissTimer.stop();
         visible = false;
         pendingPointerWindow = matchesActivation(Workspace.activeWindow, window) ? null : window;        
@@ -301,7 +368,7 @@ SceneEffect {
     }
 
     function cycle(delta) {
-        const count = filteredCandidates.length;
+        const count = results.length;
         if (count === 0) {
             selectedIndex = -1;
             return;
@@ -397,7 +464,7 @@ SceneEffect {
         name: "Search Window Switcher"
         text: "Show Search Window Switcher"
         sequence: "Meta+Alt+Space"
-        onActivated: effect.openSwitcher()
+        onActivated: effect.visible ? effect.cancel() : effect.openSwitcher()
     }
 
     delegate: Item {
@@ -507,7 +574,8 @@ SceneEffect {
                         id: searchField
 
                         width: parent.width
-                        placeholderText: "Search windows…"
+                        placeholderText: effect.configuration.EnableAppLauncher
+                            ? "Search windows and applications…" : "Search windows…"
                         selectByMouse: true
                         focus: true
 
@@ -554,7 +622,7 @@ SceneEffect {
                             } else if ((event.modifiers & Qt.ControlModifier) !== 0) {
                                 const shortcutIndex = effect.shortcutIndexForKey(event.key);
                                 if (shortcutIndex >= 0
-                                        && shortcutIndex < effect.filteredCandidates.length) {
+                                        && shortcutIndex < effect.results.length) {
                                     effect.activateFilteredIndex(shortcutIndex);
                                 } else {
                                     handled = false;
@@ -582,7 +650,7 @@ SceneEffect {
                         height: parent.height - searchField.height - 11
                         clip: true
                         spacing: 2
-                        model: effect.filteredCandidates
+                        model: effect.results
                         currentIndex: effect.selectedIndex
 
                         Controls.ScrollBar.vertical: Controls.ScrollBar { }
@@ -592,6 +660,7 @@ SceneEffect {
                             required property int index
                             required property var modelData
 
+                            readonly property var entry: modelData.window || modelData
                             readonly property bool selected: index === effect.selectedIndex
 
                             width: ListView.view.width
@@ -601,16 +670,37 @@ SceneEffect {
                                  ? Kirigami.Theme.highlightColor
                                  : "transparent"
 
-                            Kirigami.Icon {
-                                id: windowIcon
+                            Text {
+                                id: resultType
+                                visible: effect.configuration.EnableAppLauncher
                                 anchors {
                                     left: parent.left
                                     leftMargin: 10
                                     verticalCenter: parent.verticalCenter
                                 }
+                                width: typeMetrics.advanceWidth
+                                horizontalAlignment: Text.AlignRight
+                                text: row.modelData.window ? "Window:" : "Application:"
+                                font: Kirigami.Theme.defaultFont
+                                color: row.selected ? Kirigami.Theme.highlightedTextColor : "white"
+                            }
+
+                            TextMetrics {
+                                id: typeMetrics
+                                font: Kirigami.Theme.defaultFont
+                                text: "Application:"
+                            }
+
+                            Kirigami.Icon {
+                                id: windowIcon
+                                anchors {
+                                    left: resultType.visible ? resultType.right : parent.left
+                                    leftMargin: 10
+                                    verticalCenter: parent.verticalCenter
+                                }
                                 width: 38
                                 height: 38
-                                source: row.modelData.icon
+                                source: row.entry.icon
                                 fallback: "application-x-executable"
                             }
 
@@ -626,7 +716,7 @@ SceneEffect {
 
                                 Text {
                                     width: parent.width
-                                    text: row.modelData.caption
+                                    text: row.entry.caption
                                     font: Kirigami.Theme.defaultFont
                                     elide: Text.ElideRight
                                     color: row.selected
@@ -636,9 +726,10 @@ SceneEffect {
 
                                 Text {
                                     width: parent.width
-                                    text: row.modelData === effect.invocationWindow
-                                        ? String(row.modelData.resourceClass) + "  ·  current window"
-                                        : String(row.modelData.resourceClass)
+                                    text: !row.modelData.window ? (row.entry.subtext || "")
+                                        : row.entry === effect.invocationWindow
+                                            ? String(row.entry.resourceClass) + "  ·  current window"
+                                            : String(row.entry.resourceClass)
                                     font: Kirigami.Theme.smallFont
                                     elide: Text.ElideRight
                                     color: row.selected
@@ -674,12 +765,13 @@ SceneEffect {
 
                         footer: Item {
                             width: windowList.width
-                            height: effect.filteredCandidates.length === 0 ? 70 : 0
+                            height: effect.results.length === 0 ? 70 : 0
 
                             Text {
                                 anchors.centerIn: parent
-                                visible: effect.filteredCandidates.length === 0
-                                text: "No matching windows"
+                                visible: effect.results.length === 0
+                                text: effect.configuration.EnableAppLauncher
+                                    ? "No matching windows or applications" : "No matching windows"
                                 color: "#aaffffff"
                                 font: Kirigami.Theme.defaultFont
                             }

@@ -14,6 +14,13 @@
 
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <widget class="QCheckBox" name="kcfg_EnableAppLauncher">
+     <property name="text">
+      <string>Enable application launcher</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QCheckBox" name="kcfg_EmacsStyleNavigation">
      <property name="text">
       <string>Use Emacs-style navigation</string>

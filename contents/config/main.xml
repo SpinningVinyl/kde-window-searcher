@@ -6,6 +6,9 @@
     <kcfgfile name=""/>
 
     <group name="">
+        <entry name="EnableAppLauncher" type="Bool">
+            <default>true</default>
+        </entry>
         <entry name="EmacsStyleNavigation" type="Bool">
             <default>false</default>
         </entry>
