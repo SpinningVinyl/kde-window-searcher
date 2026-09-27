@@ -177,7 +177,7 @@ SceneEffect {
 
         const valueTokens = value
             .split(/[\s._\-:/\\]+/)
-            .filter(token => token.length > 0);
+            .filter(token => token.length >= 4);
 
         if (queryTokens.length === 0 || valueTokens.length === 0) {
             return -1;
@@ -230,7 +230,7 @@ SceneEffect {
 
         let minimumScore = 0;
         if (needle.length >= 3) {
-           minimumScore = 50;
+           minimumScore = 55;
         }
         const matches = [];
 
