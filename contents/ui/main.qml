@@ -8,9 +8,9 @@ import "../code/FuzzyMatcher.js" as FuzzyMatcher
 SceneEffect {
     id: effect
 
-    // A normal interaction should take only a few seconds;
+    // a normal interaction should take only a few seconds;
     // if the effect is still open after 30s, dismiss it so a suspend/lock/focus
-    // glitch cannot strand the full-screen SceneEffect on screen.
+    // glitch cannot strand the full-screen SceneEffect on screen
     readonly property int autoDismissInterval: 30000
 
     property point invocationPos: Qt.point(0, 0)
@@ -19,7 +19,7 @@ SceneEffect {
     property var pendingPointerWindow: null
 
     // candidates: MRU order, with the window that was active on invocation
-    // appended at the end.
+    // appended at the end
     property var candidates: []
     property var filteredCandidates: []
     property var results: []
@@ -76,8 +76,7 @@ SceneEffect {
             initial.push(active);
         }
 
-        // Initial fallback only. Once activation events have been observed,
-        // mruWindows contains genuine recency information.
+        // initial fallback only (populate using KWin's stacking order)
         const stack = Workspace.stackingOrder;
         for (let i = stack.length - 1; i >= 0; --i) {
             const window = stack[i];
@@ -90,8 +89,8 @@ SceneEffect {
     }
 
     function reconcileMru() {
-        // Keep the genuine MRU order for known windows, discard stale entries,
-        // then append newly discovered background windows in topmost-first order.
+        // keep the genuine MRU order for known windows, discard stale entries,
+        // then append newly discovered background windows in topmost-first order
         const next = [];
 
         for (let i = 0; i < mruWindows.length; ++i) {
@@ -145,7 +144,7 @@ SceneEffect {
         const active = invocationWindow;
         const includeActive = trackable(active);
 
-        // Everything except the invocation window stays in MRU order.
+        // everything except the active window stays in MRU order
         for (let i = 0; i < mruWindows.length; ++i) {
             const window = mruWindows[i];
             if (!trackable(window) || window === active) {
@@ -154,7 +153,7 @@ SceneEffect {
             result.push(window);
         }
 
-        // The currently active window is deliberately last (mimic the Alt-Tab behaviour)
+        // the currently active window is deliberately last (mimic the Alt-Tab behaviour)
         if (includeActive) {
             result.push(active);
         }
@@ -163,13 +162,10 @@ SceneEffect {
         updateFilter();
     }
 
-    function partialMatchScore(searchString, text) {
-        if (!text || !searchString) {
+    function partialMatchScore(value, needle) {
+        if (!value || !needle) {
             return -1;
         }
-
-        const value = String(text);
-        const needle = String(searchString).trim();
 
         const queryTokens = needle
             .split(/[\s._\-:/\\]+/)
@@ -177,25 +173,40 @@ SceneEffect {
 
         const valueTokens = value
             .split(/[\s._\-:/\\]+/)
-            .filter(token => token.length >= 4);
+            .filter(token => token.length > 0);
 
-        if (queryTokens.length === 0 || valueTokens.length === 0) {
+        if (queryTokens.length === 0) {
             return -1;
         }
 
         // use the whole-string comparison as the baseline
         let best = FuzzyMatcher.score(needle, value, true);
 
-        const windowSize = queryTokens.length;
+        const queryFragment = queryTokens.join(" ");
+        
+        for (let start = 0;
+         start + queryTokens.length <= valueTokens.length;
+         ++start) {
 
-        if (windowSize <= valueTokens.length) {
-            for (let start = 0;
-             start + windowSize <= valueTokens.length;
-             ++start) {
-                 const fragment = valueTokens.slice(start, start + windowSize).join(" ");
-                 best = Math.max(best, FuzzyMatcher.score(needle, fragment, true));
+             const window = valueTokens.slice(start, start + queryTokens.length);
+
+             // a candidate token shorter than the corresponding query
+             // token is not useful for the kind of partial matching we want
+             let valid = true;
+
+             for (let i = 0; i < queryTokens.length; ++i) {
+                 // allow some leeway for typos
+                 if (window[i].length + 1 < queryTokens[i].length) {
+                     valid = false;
+                     break;
+                 }
              }
-        }
+
+             if (!valid) continue;
+
+             const valueFragment = window.join(" ");
+             best = Math.max(best, FuzzyMatcher.score(queryFragment, valueFragment, true));
+         }
 
         return best;
     }
@@ -217,7 +228,7 @@ SceneEffect {
 
     function updateFilter() {
         const needle = query.trim();
-        // Discard the previous query immediately, including while runners are busy.
+        // discard the previous query immediately, including while runners are busy
         applications.clear();
         applications.queryString = visible && configuration.EnableAppLauncher ? needle : "";
 
@@ -252,7 +263,7 @@ SceneEffect {
                 return b.score - a.score;
             }
 
-            // Equal-quality matches retain MRU ordering.
+            // equal-quality matches retain MRU ordering
             return a.mruIndex - b.mruIndex;
         });
 
@@ -342,7 +353,7 @@ SceneEffect {
 
         const result = results[index];
         if (!result.window) {
-            // Resolve by identity: asynchronous results may have moved since rendering.
+            // resolve by identity: asynchronous results may have moved since rendering
             if (!configuration.EnableAppLauncher || applications.queryString !== query.trim()) {
                 return;
             }
@@ -379,7 +390,7 @@ SceneEffect {
             return;
         }
 
-        // Deliberate wrap-around in both directions.
+        // wrap-around in both directions
         selectedIndex = (selectedIndex + delta + count) % count;
     }
 
